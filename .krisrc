@@ -1,0 +1,149 @@
+export SVU=https://svn/repos/svn/
+export ASVU=https://asus-svn.build/repos/svn/
+export CVSROOT=:pserver:kriswar@cvs:/cvs
+export EDITOR=vim
+export DEBEMAIL='kris.warkentin@xandros.com'
+alias cgrep='rgrep --include "*.[ch]*"'
+alias afind='find [^keo]*'
+if [ -e /etc/debian_chroot ] ; then
+	export LANG=C
+	export LC_ALL=C
+fi
+export PATH=$PATH:$HOME/bin
+
+WHEREAMI=`uname`
+
+if [ 'SunOS' == "$WHEREAMI" ] ; then
+	export PATH=/usr/local/bin:/usr/ccs/bin:$PATH:/usr/local/trigence/bin
+	export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+	. /home1/kwarkentin/gdb.env
+elif [ "CYGWIN_NT-5.1" == "$WHEREAMI" ] ; then
+    export HOME=/cygdrive/h/kwarkentin
+	alias ls='ls --color=auto'
+elif [ "Linux" == "$WHEREAMI" ] ; then
+	alias ls='ls --color=auto'
+elif [ "Darwin" == "$WHEREAMI" ] ; then
+    cd $HOME
+fi
+
+up()
+{
+	if [ $# -ne 1 ] ; then
+		echo "usage: up <num dirs to go up>"
+	else
+		count=$1
+		while [ $count -gt 0 ] ; do
+			cd ..
+			count=$(($count - 1))
+		done
+	fi
+}
+
+kroot()
+{
+  sudo chroot /chroots/$1 su -l -c "cd $PWD ; exec bash" kriswar
+}
+
+tkmod()
+{
+  TKDIFF_ARGS=""
+  REV1=""
+  REV2=""
+  while [ $# -ne 0 ] ; do
+    case $1 in
+    -r)
+        TKDIFF_ARGS="$TKDIFF_ARGS $1 $2"
+        if [ -z "$REV1" ] ; then
+            REV1=$2
+        else
+            REV2=$2
+        fi
+        shift
+        ;;
+    *)
+        TKDIFF_ARGS="$TKDIFF_ARGS $1"
+        ;;
+    esac
+    shift
+  done
+
+  if [ -n "$REV1" ] ; then
+      FILELIST=`svn diff -r $REV1:${REV2:-HEAD} --summarize | awk '/^M/{print $2}'`
+  else
+      FILELIST=`svn st -q | awk '/^M/{print $2}'`
+  fi
+
+  for file in $FILELIST ; do 
+    echo "Running tkdiff $TKDIFF_ARGS $file"
+    tkdiff $TKDIFF_ARGS $file
+  done
+}
+
+tkdir()
+{
+  DIR1=$1
+  DIR2=$2
+
+  for file in `find $DIR1 | sed 's/[^\/]*\///'` ; do
+  	if [ -f $DIR2/$file ] ; then
+		if ! diff -q $DIR1/$file $DIR2/$file > /dev/null ; then
+			tkdiff $DIR1/$file $DIR2/$file;
+		fi
+	fi
+  done
+}
+
+ip2hex()
+{
+  args=`echo $1 | sed 's/\./ /g'`
+  for word in $args ; do
+    new_args="$word $new_args"
+  done
+  printf "%.2x%.2x%.2x%.2x\n" $new_args
+}
+
+vi()
+{ 
+if [ "CYGWIN_NT-5.1" == "$WHEREAMI" ] ; then
+	args=""
+	for arg in $* ; do
+		case $arg in
+		-*) args="$args $arg"
+		;;
+		*) args="$args `cygpath -w $arg`"
+		;;
+		esac
+	done
+	/cygdrive/c/Program\ Files/Vim/vim71/gvim.exe $args &
+elif [ "Linux" == "$WHEREAMI" ] ; then
+	V=`which gvim`
+	if [ -z "$V" ] ; then
+		V=`which vim`
+		if [ -z "$V" ] ; then
+			V=`which vi`
+		fi
+	fi
+	GDK_NATIVE_WINDOWS=1 $V "$@"
+elif [ "Darwin" == "$WHEREAMI" ] ; then
+    /Applications/MacVim.app/Contents/MacOS/MacVim $* &
+else
+	/usr/bin/vi "$@"
+fi			
+}
+
+exp()
+{
+if [ "CYGWIN_NT-5.1" == "$WHEREAMI" ] ; then
+    CURPATH=`pwd`
+    explorer `cygpath -w $CURPATH`
+elif [ "Linux" == "$WHEREAMI" ] ; then
+    nautilus `pwd`
+fi
+}
+
+mkm()
+{
+CWD=`pwd`
+KER_BASE=`echo $CWD | awk -F/ '{print "/" $2 "/" $3 "/" $4}'`
+make -C $KER_BASE SUBDIRS=$CWD modules
+}
