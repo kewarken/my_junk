@@ -29,9 +29,14 @@ if [ "$resp" != "yes" ] ; then
 fi
 
 for mount in home proc dev/pts var/cache/git ; do
-	if ! umount $REALPATH/$mount ; then
-		echo Failed to unmount $REALPATH/$mount.  Aborting.
-		exit 1
+	res=`umount $REALPATH/$mount 2>&1`
+	if [ $? -ne 0 ] ; then
+		if echo $res | grep -q 'not mounted$' ; then
+			echo Warning: $REALPATH/$mount not mounted.
+		else
+			echo Failed to unmount $REALPATH/$mount.  Aborting.
+			exit 1
+		fi
 	fi
 done
 
